@@ -66,18 +66,100 @@ ui <- dashboardPage(
       ),
 
 # Data Exploration page
-#          tabItem("Data Exploration", value = "exploration",
-#                   # Display numerical and graphical summaries based on user selections
-#          ),
-#          
-#          # Modeling page
-#          tabItem("Modeling", value = "modeling",
-#                   
-#                   # Model Info tab
-#                   tabItem("Modeling Info",
-#                            # Provide explanation of different modeling approaches and their benefits/drawbacks
-#                            # Include mathJax equations for better understanding
-#                   ),
+          tabItem(tabName = "exploration",
+                  fluidRow(
+                    column(width=12, align="center" , h3("Data Exploration of the Kepler Exoplanet dataset")),
+                    br(),
+                    br(),
+                    br(),
+                    # Dropdown to select disposition type
+                    column(width=4,
+                    selectInput("dispositionType", "Filter Data by Disposition Type:",
+                                choices = c("All", "FALSE POSITIVE", "CANDIDATE", "CONFIRMED"),
+                                selected = "All"),
+                    
+                    # Dropdown to select plot type
+                    selectInput("plotType", "Select Plot Type:",
+                                choices = c("Histogram","Density Plot"),
+                                selected = "Histogram"),
+                    
+                    # Dropdown to select summary type
+                    selectInput("summaryType", "Select Summary Type:",
+                                choices = c("Summary Statistics", "Summary Statistics by Exoplanet Disposition"),
+                                selected = "Summary Statistics"),
+                    
+                    # Dropdown to select variables
+                    selectInput("selectedVariable", "Selected Variables:",
+                                choices = c("DispositionScore", "OrbitalPeriodDays",
+                                            "TransitEpoch", "ImpactParameter", "TransitDurationHrs",
+                                            "TransitDepth_ppm", "PlanetaryRadius_Earthradii",
+                                            "StellarEffectiveTemperatureK", "StellarSurfaceGravity"),
+                                selected = "DispositionScore"),
+                    ),
+                    # Plot output
+                    column(width=8,
+                    plotOutput("explorationPlot")
+                    ),
+                    # Table output for summary statistics or Contingency table
+                    tableOutput("summaryTable")
+                  )
+          ),
+          
+           # Modeling page
+
+                    # Model Info tab
+                   tabItem("modeling_info",
+                           fluidRow(
+                          # Add latex
+                          withMathJax(),
+                          column(
+                                 # Linear Regression
+                                 h3("Multiple Linear Regression"),
+                                 width=12,
+                                     h4("Explanation of method:"),
+                                     p("Multiple linear regression is a statistical method that attempts to model a linear relationship between two variables, the response, and the predictors/explanatory variables. Typically, we use the least-squares method, which minimizes the sum of squared residuals to find the best fitted line between the response and the predictors. These models are usually written as $$Y_i=\\beta_0 + \\beta_1 x_{1i} + ... + \\beta_n x_{ni}$$"),  
+                                     p("$$where~Y_i ~ is~our~response~variable.$$"),
+                                     p("$$\\beta_0~is~the~intercept~term.$$"),
+                                     p("$$\\beta_1 + ... + \\beta_n~are~the~coefficients~for~each~predictor.$$"),
+                                     br(),
+                                     h4("Benefits:"),
+                                     p("The benefits of multiple linear regression include 1) it is simple and relatively easy to interpret, and 2) it can include both categorical and continious predictors"),
+                                     br(),
+                                     h4("Drawbacks:"),
+                                     p("The drawbacks of multiple linear regression include that is assumes a linear relationship between the response and predictors, which is not always the case. Similarly, complex nonlinear relationships may not be captured. Another disadvantage is that multiple linear regression is sensitive to outliers which can significantly affect the model's performance and the model's assumptions. Additionally, leverage points (think extreme value on a predictor variable) and influential points (removing the observation dramatically changes the estimates of the regression coefficient) can also have a strong impact on the regression model.  ")),
+                                 
+                                 # Classification Tree
+                                 column(
+                                     h2("Classification Tree"),
+                                     width=12,
+                                     h4("Explanation of method:"),
+                                     p("A Classification Tree is a predictive model that use decision trees to split up the predictor space into regions. The goal is to predict or categorize group membership for each data point. In our case we want to predict the exoplanet disposition type of each data points based on certain features.  The tree structure consists of nodes and branches, and each node represents a feature or attribute, and each branch represents a decision rule based on that feature.  The main objective of building a classification tree is to partition the data into subsets in a way that maximizes the homogeneity of class labels within each subset. One commonly used measure is the Gini index. For a binary response (0=False Positive, 1=Candidate or Confirmed), within a given node (p=P(correct classification)):"),
+                                     p("Gini: 2p(1-p) and Deviance: -2p*log(p) - 2(1-p)*log(1-p)."), 
+                                     p("These measures quantify the impurity or uncertainty within the node based on the class proportions."),
+                                     br(),
+                                     h4("Benefits"),
+                                     p("The benefits of using classification trees include easy interpretability. So they are relatively straightforward to understand, and visualize. Additionally, classification trees are non-parametric, therefore there are no assumptions that need to be met before using this method. Therefore, they can capture complex non-linear relationships."),
+                                     br(),
+                                     h4("Drawbacks:"),
+                                     p("A drawback for classification trees is that they are prone to overfitting. Generally, it is a good approach to 'prune' or limit the tree depth to avoid this. Another drawback involves time, as it may take longer to train the model as the calculations can become more complex. Similarly, if the training data is not balanced, the training model could become biased towards certain classifications.")
+                          ),
+                          
+                          column(
+                                 # Random Forest
+                                 h2("Random Forest"), width=12,
+                                     h4("Explanation of method:"),
+                                     p("Random forest is an ensemble learning technique. The random forest algorithm uses bagging, to resample from the data (bootstrap sample). These subsets ensure that each decision tree is trained on slightly different data. Next, multiple decision trees are created from these samples to create an uncorrelated forest and the results are then averaged. Unlike bagging, random forest modeling doesn't use all its predictors but uses a random subset of predictors for each bootstrap sample. The number of randomly selected predictors used for the prediction method is calculated by finding one-third of the number of variables. $$m = \\sqrt{p}$$ This random feature selection increases the diversity among the decision trees and prevents one feature from dominating the tree fits. In classification, the final prediction of the Random Forest is determined by a majority vote among the individual decision trees."),
+                                     br(),
+                                     h4("Benefits"),
+                                     p("The benefits of Random Forest are that it is robust to outliers, and it generally provides better predictions compared to a single decision tree. The risk of overfitting a RF model is lower, and RF works with non-linear data."),
+                                     br(),
+                                     h4("Drawbacks"),
+                                     p("Some drawbacks for the Random Forest mothod are that it is computationally slow amd complex. Additionally, the combined predictions of many decision trees make interpretability more difficult compared to a single decision tree. ")
+                                 )
+                                 
+                                 
+                          ) 
+                           ),
 #                   
 #                   # Model Fitting tab
 #                   tabItem("Model Fitting",
@@ -135,22 +217,76 @@ server <- shinyServer(function(input, output, session) {
   # Reads in data and data cleans slightly
   kepler <- reactive({
     keplerData <- read_csv("keplerExoplanetCumulative.csv")
+    
+    keplerData <- keplerData %>% select(-rowid) %>%
+      rename(
+        "KepID" = kepid,
+        "KOI_Name" = kepoi_name,
+        "Kepler_Name" = kepler_name,
+        "ExoplanetArchiveDisposition" = koi_disposition,
+        "DispositionUsingKeplerData" = koi_pdisposition,
+        "DispositionScore" = koi_score,
+        "NotTransit-LikeFalsePositiveFlag" = koi_fpflag_nt,
+        "StellarEclipseFlag" = koi_fpflag_ss,
+        "CentroidOffsetFalsePositiveFlag" = koi_fpflag_co,
+        "EphemerisMatchIndicatesContaminationFalsePositiveFlag" = koi_fpflag_ec,
+        "OrbitalPeriodDays" = koi_period,
+        "OrbitalPeriodUpperErrorDays" = koi_period_err1,
+        "OrbitalPeriodLowerErrorDays" = koi_period_err2,
+        "TransitEpoch" = koi_time0bk,
+        "TransitEpochUpperError" = koi_time0bk_err1,
+        "TransitEpochLowerError" = koi_time0bk_err2,
+        "ImpactParameter" = koi_impact,
+        "ImpactParameterUpperError" = koi_impact_err1,
+        "ImpactParameterLowerError" = koi_impact_err2,
+        "TransitDurationHrs" = koi_duration,
+        "TransitDurationUpperErrorHrs" = koi_duration_err1,
+        "TransitDurationLowerErrorHrs" = koi_duration_err2,
+        "TransitDepth_ppm" = koi_depth,
+        "TransitDepthUpperError_ppm" = koi_depth_err1,
+        "TransitDepthLowerError_ppm" = koi_depth_err2,
+        "PlanetaryRadius_Earthradii" = koi_prad,
+        "PlanetaryRadiusUpperError_Earthradii" = koi_prad_err1,
+        "PlanetaryRadiusLowerError_Earthradii" = koi_prad_err2,
+        "EquilibriumTemperature_K" = koi_teq,
+        "EquilibriumTemperatureUpperErrorK" = koi_teq_err1,
+        "EquilibriumTemperatureLowerErrorK" = koi_teq_err2,
+        "InsolationFlux_Earthflux" = koi_insol,
+        "InsolationFluxUpperError_Earthflux" = koi_insol_err1,
+        "InsolationFluxLowerError_Earthflux" = koi_insol_err2,
+        "TransitSignalNoise" = koi_model_snr,
+        "TCEPlanetNumber" = koi_tce_plnt_num,
+        "TCEDeliverName" = koi_tce_delivname,
+        "StellarEffectiveTemperatureK" = koi_steff,
+        "StellarEffectiveTemperatureUpperErrorK" = koi_steff_err1,
+        "StellarEffectiveTemperatureLowerErrorK" = koi_steff_err2,
+        "StellarSurfaceGravity" = koi_slogg,
+        "StellarSurfaceGravityUpperError" = koi_slogg_err1,
+        "StellarSurfaceGravityLowerError" = koi_slogg_err2,
+        "StellarRadius_Solarradii" = koi_srad,
+        "StellarRadiusUpperError_Solarradii" = koi_srad_err1,
+        "StellarRadiusLowerError_Solarradii" = koi_srad_err2,
+        "RA_decimaldegrees" = ra,
+        "Dec_decimaldegrees" = dec,
+        "Kepler_bandMag" = koi_kepmag
+      )
+    
     return(keplerData)
   })
   
-  # Update choices for checkboxGroupInput based on available columns
+  # Update choices for checkboxGroupInput (Data Tab) based on available columns
   observe({
     columns <- names(kepler())
     updateCheckboxGroupInput(session, "selectedColumns", choices = columns, selected = columns)
   })
   
-  # Filter and subset the data based on user selection
+  # Filter and subset the data based on user selection (Data Tab)
     filteredData <- reactive({
       kepler <- kepler()
       
       if (input$dataDisposition != "No") {
         kepler <- kepler %>%
-          filter(koi_disposition == input$dataDisposition)
+          filter(ExoplanetArchiveDisposition == input$dataDisposition)
       }
       
       # Subsetting columns based on user selection
@@ -159,6 +295,116 @@ server <- shinyServer(function(input, output, session) {
       
       return(kepler)
     })
+    
+    # Filter and subset the data based on user selection (Data Tab)
+    filterDataExplore <- reactive({
+      kepler <- kepler()
+      
+      if (input$dispositionType != "All") {
+        kepler <- kepler %>%
+          filter(ExoplanetArchiveDisposition == input$dispositionType)
+      }
+      
+      # Subsetting columns based on user selection
+      kepler <- kepler %>%
+        select(ExoplanetArchiveDisposition, input$selectedVariable)
+      
+      # Remove missing values for the selected variable
+      kepler <- kepler %>%
+        drop_na(all_of(input$selectedVariable))  # Use all_of()
+      
+      # Drop the upper and lower 2.5% of data for the selected variable
+      selected_var <- input$selectedVariable
+      lower_bound <- quantile(kepler[[selected_var]], 0.025, na.rm = TRUE)  # 2.5th percentile
+      upper_bound <- quantile(kepler[[selected_var]], 0.975, na.rm = TRUE)  # 97.5th percentile
+      
+      # Filter the data to exclude values beyond the lower and upper bounds
+      kepler <- kepler %>%
+        filter(.data[[selected_var]] >= lower_bound & .data[[selected_var]] <= upper_bound)
+
+  return(kepler)
+})
+    
+    # Render the exploration plot
+    output$explorationPlot <- renderPlot({
+      # Filter data based on selected variable and remove top and bottom 5% values
+        keplerData <- filterDataExplore()
+        selected_var <- input$selectedVariable
+        
+        binwidth_mapping <- list(
+          DispositionScore = 0.1,
+          OrbitalPeriodDays = 2,
+          TransitEpoch = 1,
+          ImpactParameter = 0.1,
+          TransitDurationHrs = 2,
+          TransitDepth_ppm = 100,
+          PlanetaryRadius_Earthradii = 0.2,
+          StellarEffectiveTemperatureK = 100,
+          StellarSurfaceGravity = 0.1
+        )
+        
+      # Plotting the histogram or scatter plot based on user input
+      if (input$plotType == "Histogram") {
+        binwidth <- binwidth_mapping[[selected_var]]
+        ggplot(keplerData, aes_string(x = selected_var)) +
+          geom_histogram(binwidth = binwidth, fill = "red", color = "black") +
+          labs(x = selected_var, y = "Frequency") +
+          theme_classic()
+      } 
+      else if (input$plotType == "Density Plot") {
+          ggplot(keplerData, aes_string(x = selected_var)) +
+            geom_density(fill = "blue", alpha = 0.5) +
+            labs(x = selected_var, y = "Density") +
+            theme_classic()
+        }
+        
+        
+        
+    })
+    
+
+    # Render the summary table
+    output$summaryTable <- renderTable({
+      keplerData <- filterDataExplore()
+      
+      # Calculate summary statistics or contingency table based on user selection
+      if (input$summaryType == "Summary Statistics") {
+        # Calculate summary statistics (mean, median, etc.) for the selected variable
+        selected_var <- input$selectedVariable
+        summary_stats <- keplerData %>% 
+          summarise(
+            Statistics = paste0("Summary Statistics for: ", selected_var),
+            N = n(),
+            Mean = mean(.data[[selected_var]], na.rm = TRUE),
+            Median = median(.data[[selected_var]], na.rm = TRUE),
+            Std.Dev = sd(.data[[selected_var]], na.rm = TRUE),
+            Minimum = min(.data[[selected_var]], na.rm = TRUE),
+            Maximum = max(.data[[selected_var]], na.rm = TRUE)
+          )
+        return(summary_stats)
+      } else {
+        # Calculate a contingency table for the selected variable and disposition type
+        selected_var <- input$selectedVariable
+       
+        contingency_table <- keplerData %>%
+          group_by(ExoplanetArchiveDisposition) %>%
+          summarise(Statistics = paste0("Summary Statistics for: ", selected_var),
+                    N = n(),
+                    Mean = mean(.data[[selected_var]], na.rm = TRUE),
+                    Median = median(.data[[selected_var]], na.rm = TRUE),
+                    Std.Dev = sd(.data[[selected_var]], na.rm = TRUE),
+                    Minimum = min(.data[[selected_var]], na.rm = TRUE),
+                    Maximum = max(.data[[selected_var]], na.rm = TRUE)
+          )
+        
+        
+        return(contingency_table)
+      }
+    })
+    
+    
+    
+    
   
   # Render the data table
   output$data <- renderDataTable({
