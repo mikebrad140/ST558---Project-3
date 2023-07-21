@@ -7,7 +7,9 @@ library(shiny)
 library(shinydashboard)
 library(readxl)
 library(tidyverse)
+library(caret)
 library(DT)
+library(doParallel)
 
 
 # UI Code:
@@ -106,14 +108,12 @@ ui <- dashboardPage(
           ),
           
            # Modeling page
-
                     # Model Info tab
                    tabItem("modeling_info",
                            fluidRow(
                           # Add latex
                           withMathJax(),
-                          column(
-                                 # Linear Regression
+                          column(# Linear Regression
                                  h3("Multiple Linear Regression"),
                                  width=12,
                                      h4("Explanation of method:"),
@@ -156,14 +156,100 @@ ui <- dashboardPage(
                                      h4("Drawbacks"),
                                      p("Some drawbacks for the Random Forest mothod are that it is computationally slow amd complex. Additionally, the combined predictions of many decision trees make interpretability more difficult compared to a single decision tree. ")
                                  )
-                                 
-                                 
                           ) 
                            ),
-#                   
-#                   # Model Fitting tab
-#                   tabItem("Model Fitting",
-#                            # Split data into training and test sets
+                
+                   # Model Fitting tab
+                   tabItem("modeling_fitting",
+                            # Split data into training and test sets
+                          fluidRow(
+                           column(width=4,
+                                  box(width=12,
+                                      numericInput(inputId = "proportion",
+                                                   label = "Proportion of dataset to use for training data:",
+                                                   value = 0.7,
+                                                   min = 0,
+                                                   max = 1,
+                                                   step = 0.1)
+                                  ),
+                          # Provide checkboxes to select variables
+                          # Choose what variables you want in the model 
+                          box(width=12,
+                          checkboxGroupInput(inputId = "SelectModelVars",
+                                             label = "Choose the variables you want included in the models:",
+                                             choices = c("Orbital Period Days" = "OrbitalPeriodDays",
+                                                         "Transit Epoch" = "TransitEpoch", 
+                                                         "Impact Parameter" ="ImpactParameter", 
+                                                         "Transit Duration (Hours)" = "TransitDurationHrs",
+                                                         "Transit Depth (ppm)" = "TransitDepth_ppm", 
+                                                         "Insolation Flux (Earth Flux)" = "InsolationFlux_Earthflux",
+                                                         "Transit Signal to Noise" = "TransitSignalNoise",
+                                                         "Stellar Effective Temperature (Kelvin)" = "StellarEffectiveTemperatureK", 
+                                                         "Stellar Surface Gravity" ="StellarSurfaceGravity",
+                                                         "Stellar Radius (solar radii)" = "StellarRadius_Solarradii"),
+                                             selected = c("Orbital Period Days" = "OrbitalPeriodDays",
+                                                          "Transit Epoch" = "TransitEpoch", 
+                                                          "Impact Parameter" ="ImpactParameter", 
+                                                          "Transit Duration (Hours)" = "TransitDurationHrs",
+                                                          "Transit Depth (ppm)" = "TransitDepth_ppm", 
+                                                          "Insolation Flux (Earth Flux)" = "InsolationFlux_Earthflux",
+                                                          "Transit Signal to Noise" = "TransitSignalNoise",
+                                                          "Stellar Effective Temperature (Kelvin)" = "StellarEffectiveTemperatureK", 
+                                                          "Stellar Surface Gravity" ="StellarSurfaceGravity",
+                                                          "Stellar Radius (solar radii)" = "StellarRadius_Solarradii"))),
+                          box(width=12,
+                              numericInput(inputId = "num_folds",
+                                           label = "Specify the number of cross-validation folds:",
+                                           value = 5,
+                                           min = 1,
+                                           max = 10,
+                                           step = 1)
+                          ),
+                          box(width=12,
+                              numericInput(inputId = "num_repeats",
+                                           label = "Specify the number of cross-validation repeats:",
+                                           value = 3,
+                                           min = 1,
+                                           max = 10,
+                                           step = 1)
+                          ),
+                          box(width=12,
+                              background = "green",
+                              
+                              # Button to press to run models
+                              actionButton("GoGo", "Run Models")
+                          )
+                   ),
+                   column(width=8,
+                          box(width=12,
+                              # Displaying Accuracy table for each model
+                              title = "Accuracy for Each Model Using the Training Dataset",
+                              tableOutput("summary_Accuracy")
+                          ),
+                          box(width=12,
+                              # Summary of predictors: Multiple Linear Regression 
+                              title = "Model Summary: Generalized Linear Regression Model",
+                              verbatimTextOutput("summary_Logic")
+                          ),
+                          box(width=12,
+                              # Variable importance plot: Classification Tree
+                              title = "Importance Scores of Top 10 Variables: Classification Tree Model Summary",
+                              plotOutput("plot_ClassificationTree")
+                          ),
+                          box(width=12,
+                              # Variable importance plot: Random forest
+                              title = "Importance Scores of Top 10 Variables: Random Forest Model Summary",
+                              plotOutput("plot_RandomForest")
+                          ),
+                          box(width=12,
+                              title = "Comparing the Three Models on the Test Data Set",
+                              tableOutput("model_summary"),
+                              textOutput("model_summaryPrint")
+                          )
+                   )
+
+                          
+                          )),
 #                            # Allow users to choose model settings and variables
 #                            # Provide buttons to fit models on training data and display model summaries
 #                   ),
@@ -214,7 +300,7 @@ ui <- dashboardPage(
 
 server <- shinyServer(function(input, output, session) {
   
-  # Reads in data and data cleans slightly
+  # Reads in data and renames
   kepler <- reactive({
     keplerData <- read_csv("keplerExoplanetCumulative.csv")
     
@@ -274,6 +360,199 @@ server <- shinyServer(function(input, output, session) {
     return(keplerData)
   })
   
+  # Modeling Fitting Output
+  ExoModel <- eventReactive(input$GoGo, {
+    
+    # use the selected variable in our model
+    ModelVarList <- input$SelectModelVars
+    
+    #define the response variable
+    keplerModel <- kepler() %>% 
+      mutate(KeplarExoplanetDisposition_BinaryYN = ifelse(ExoplanetArchiveDisposition == "CANDIDATE" | ExoplanetArchiveDisposition == "CONFIRMED", 1, 0)) %>%
+      select(KeplarExoplanetDisposition_BinaryYN, ModelVarList)
+    # Convert the outcome variable to a factor with two levels
+    keplerModel$KeplarExoplanetDisposition_BinaryYN <- factor(keplerModel$KeplarExoplanetDisposition_BinaryYN, levels = c(0, 1))
+    # remove missings
+    keplerModel <- na.omit(keplerModel)
+    return(keplerModel)
+  })
+  
+  # Creates training Index with the proportion specified
+  trainIndex <- eventReactive(input$GoGo, {
+    set.seed(717)
+    kepler <- ExoModel()
+    trainingIndex <- createDataPartition(kepler$KeplarExoplanetDisposition_BinaryYN, p = input$proportion, list = FALSE)
+  })
+  
+  # Create training dataset
+  trainData <- eventReactive(input$GoGo, {
+    
+    kepler <- ExoModel()
+    
+    KeplarTrain <- kepler[trainIndex(), ]
+  })
+  
+  # Create test dataset
+  testData <- eventReactive(input$GoGo, {
+    kepler <- ExoModel()
+    KeplarTest <- kepler[-trainIndex(), ]
+  })
+  
+  # Fits the GLM Regression Model. Based on CV and user defined folds and repeats
+  Logistic <- eventReactive(input$GoGo, {
+    
+    # Define the formula for the model using the user-selected variables
+    formula <- as.formula(paste("KeplarExoplanetDisposition_BinaryYN ~", paste(input$SelectModelVars, collapse = "+")))
+    
+    Logistic_model <- train(formula, data = trainData(),
+                      method = "glm",
+                      family = "binomial", 
+                      preProcess = c("center", "scale"),
+                      trControl = trainControl(method = "cv", 
+                                               number = input$num_folds))
+    return(Logistic_model)
+            })
+  
+  # Display the summary of the Generalized Linear Regression model
+  output$summary_Logic <- renderPrint({
+    summary(Logistic())
+  })
+  
+  #Classification tree model:
+  # Fits the Classification Tree Model. Based on CV and user defined folds and repeats
+  ClassificationTree <- eventReactive(input$GoGo, {
+    
+    # Define the formula for the model using the user-selected variables
+    formula <- as.formula(paste("KeplarExoplanetDisposition_BinaryYN ~", paste(input$SelectModelVars, collapse = "+")))
+    # Define the values of cp to tune
+    cp_values <- seq(0, 0.1, by = 0.001) 
+    
+    ClassificationTree_model <- train( formula, data = trainData(),
+      method = "rpart",
+      trControl = trainControl(method = "cv", number = input$num_folds,repeats = input$num_repeats),
+      tuneGrid = data.frame(cp = cp_values))
+    
+    return(ClassificationTree_model)
+  })
+  
+  # Creates the variable importance plot for the regression tree model
+  output$plot_ClassificationTree <- renderPlot({
+    CT_Imp <- varImp(ClassificationTree())
+    plot(CT_Imp, top = 10)
+  })
+  
+  
+  # Fits the Random Forest Model. Based on CV and user defined folds and repeats
+  RandomForestModel <- eventReactive(input$GoGo, {
+    
+    # Define the formula for the model using the user-selected variables
+    formula <- as.formula(paste("KeplarExoplanetDisposition_BinaryYN ~", paste(input$SelectModelVars, collapse = "+")))
+    
+    # Parallel Processing
+    num_cores <- detectCores()-1
+    cl <- makeCluster(num_cores)
+    registerDoParallel(cl)
+    
+    RandomForest_model <- train(
+      formula, data = trainData(),
+      method = "rf",
+      trControl = trainControl(method = "cv", number = input$num_folds, repeats = input$num_repeats),
+      tuneGrid = data.frame(mtry = 1:10))
+    
+    cl <- makeCluster(num_cores)
+    registerDoParallel(cl)
+    
+    return(RandomForest_model)
+  })
+  
+  # Creates the variable importance plot for the Random Forest model
+  output$plot_RandomForest <- renderPlot({
+    RF_Imp <- varImp(RandomForestModel())
+    plot(RF_Imp, top = 10)
+  })
+  
+  # Accuracy table for the 3 models
+  output$summary_Accuracy <- renderTable({
+    
+    LogicFit <- Logistic()
+    CTFit <- ClassificationTree()
+    RFFit <- RandomForestModel()
+    
+    LogicAcc <- LogicFit$results %>% select(Accuracy)
+    CTAcc <- CTFit$results %>% filter(cp == CTFit$bestTune$cp) %>% select(Accuracy)
+    RFAcc <- RFFit$results %>% filter(mtry == RFFit$bestTune$mtry) %>% select(Accuracy)
+    
+    Summary <- cbind(LogicAcc, CTAcc , RFAcc )
+    colnames(Summary) <- list("Logistic Regression", "Classification Tree", "Random Forest")
+    Summary
+  })
+  
+  ## DETERMINE THE BEST MODEL
+  
+  FindBestModel <- reactive({
+    
+    LogicFit <- Logistic()
+    CTFit <- ClassificationTree()
+    RFFit <- RandomForestModel()
+    
+    testData <- testData()
+    
+    # Predict Planet Disposition using the models and test data
+    predFitLogic <- predict(LogicFit, newdata = testData)
+    predFitCT <- predict(CTFit, newdata = testData)
+    predFitRF <- predict(RFFit, newdata = testData)
+    
+    # Create confusion matrices for each model
+    logic_cm <- confusionMatrix(predFitLogic, testData$KeplarExoplanetDisposition_BinaryYN)
+    ct_cm <- confusionMatrix(predFitCT, testData$KeplarExoplanetDisposition_BinaryYN)
+    rf_cm <- confusionMatrix(predFitRF, testData$KeplarExoplanetDisposition_BinaryYN)
+    
+    # Extract the accuracy values from the confusion matrices
+    accuracy_logic <- logic_cm$overall["Accuracy"]
+    accuracy_ct <- ct_cm$overall["Accuracy"]
+    accuracy_rf <- rf_cm$overall["Accuracy"]
+    
+    # Determine the best model based on accuracy
+    best_model <- which.max(c(accuracy_logic, accuracy_ct, accuracy_rf))
+    
+    # Create a data frame to store the model names and accuracy
+    model_data <- data.frame(
+      Model = c("Logistic Regression Model", "Classification Tree Model", "Random Forest Model"),
+      Accuracy = c(accuracy_logic, accuracy_ct, accuracy_rf)
+    )
+    
+    # Get the best model name and accuracy
+    best_model_name <- model_data$Model[best_model]
+    best_model_accuracy <- model_data$Accuracy[best_model]
+    
+    # Return the model_data for use in outputs
+    model_data
+  })
+  
+  # Reactive expression for model_data
+  model_data <- reactive({
+    FindBestModel()
+  })
+  
+  # Render the model_data as a table
+  output$model_summary <- renderTable({
+    model_data()
+  })
+  
+  # Render the best model information as text
+  output$model_summaryPrint <- renderText({
+    # Get the best model information
+    best_model_info <- model_data() %>% filter(Accuracy == max(Accuracy)) %>% select(Model, Accuracy)
+    
+    # Create a text string to print the best model information
+    best_model_text <- paste("The best model based on accuracy is the ", best_model_info$Model, 
+                             "with an accuracy of ", round(best_model_info$Accuracy, 3))
+    
+    # Return the text
+    best_model_text
+  })
+
+  ## DATA TAB ##
   # Update choices for checkboxGroupInput (Data Tab) based on available columns
   observe({
     columns <- names(kepler())
