@@ -1,5 +1,5 @@
 # Programmer: Michael Bradshaw
-# Date: July 17, 2023
+# Date: July 21, 2023
 # Purpose: App.R for kepler Exoplanet Dataset App - ST558 - Project 3
 
 # Packages to include:
@@ -10,7 +10,6 @@ library(tidyverse)
 library(caret)
 library(DT)
 library(doParallel)
-
 
 # UI Code:
 ui <- dashboardPage(
@@ -55,7 +54,7 @@ ui <- dashboardPage(
                        
                        p("The About page introduces this app with the purpose, a description of the data, and app overview."),
                        p("The Data Exploration page provides numerical and graphical summaries of the data. You can choose what variables and plots to review."),
-                       p("The Modeling tab consists of three pages: Modeling Info, Model Fitting, and Prediction. The Modeling Info page examines a multiple linear regression model, a boosted tree model, and a random forest model. The Model Fitting page involves dividing the data into training and testing sets (proportion can be chosen), constructing the three models, and comparing their performance. Lastly, the Prediction page allows you to make predictions for the response variable using the model of your choice."),
+                       p("The Modeling tab consists of three pages: Modeling Info, Model Fitting, and Prediction. The Modeling Info page examines a multiple logistic regression model, a boosted tree model, and a random forest model. The Model Fitting page involves dividing the data into training and testing sets (proportion can be chosen), constructing the three models, and comparing their performance. Lastly, the Prediction page allows you to make predictions for the response variable using the model of your choice."),
                        p("The Data page has the dataset used for this app. Here, you can filter, subset, and download the kepler exoplanet data.")
                 ),
               ),
@@ -114,20 +113,19 @@ ui <- dashboardPage(
                           # Add latex
                           withMathJax(),
                           column(# Linear Regression
-                                 h3("Multiple Linear Regression"),
+                                 h3("Generalized Linear Regression: Logistic Regression"),
                                  width=12,
                                      h4("Explanation of method:"),
-                                     p("Multiple linear regression is a statistical method that attempts to model a linear relationship between two variables, the response, and the predictors/explanatory variables. Typically, we use the least-squares method, which minimizes the sum of squared residuals to find the best fitted line between the response and the predictors. These models are usually written as $$Y_i=\\beta_0 + \\beta_1 x_{1i} + ... + \\beta_n x_{ni}$$"),  
-                                     p("$$where~Y_i ~ is~our~response~variable.$$"),
-                                     p("$$\\beta_0~is~the~intercept~term.$$"),
-                                     p("$$\\beta_1 + ... + \\beta_n~are~the~coefficients~for~each~predictor.$$"),
+                                     p("Multiple logistic regression is a statistical method used to model the relationship between a binary dependent/response variable (exoplanet disposition) and two or more independent variables (predictors).  The model applies the logit function to the linear combination of predictors to estimate the probability of the binary outcome.  These models are usually written as: $$P(Y=1)=\\dfrac{1}{1+e^{-(\\beta_0 + \\beta_1 x_{1i} + \\beta_2 x_{2i}+ ... + \\beta_n x_{ni})}}$$"),  
+                                     p("$$where~P(Y=1) ~ is~the~probability~of~our~response~variable~being~1.$$"),
+                                     p("$$X_1,X_2,X_n~are~the~predictor~variables.$$"),
+                                     p("$$\\beta_1 + \\beta_2+ ... + \\beta_n~are~the~coefficients~for~each~predictor.$$"),
                                      br(),
                                      h4("Benefits:"),
-                                     p("The benefits of multiple linear regression include 1) it is simple and relatively easy to interpret, and 2) it can include both categorical and continious predictors"),
+                                     p("The benefits of multiple logistic regression include 1) it is simple and relatively easy to interpret, and 2) it can include both categorical and continious predictors, 3) it works when the response variable is binary"),
                                      br(),
                                      h4("Drawbacks:"),
-                                     p("The drawbacks of multiple linear regression include that is assumes a linear relationship between the response and predictors, which is not always the case. Similarly, complex nonlinear relationships may not be captured. Another disadvantage is that multiple linear regression is sensitive to outliers which can significantly affect the model's performance and the model's assumptions. Additionally, leverage points (think extreme value on a predictor variable) and influential points (removing the observation dramatically changes the estimates of the regression coefficient) can also have a strong impact on the regression model.  ")),
-                                 
+                                     p("The drawbacks of multiple logistic regression include that is assumes a linear relationship between predictors and the log-odds of the response, which is not always the case. Similarly, complex nonlinear relationships may not be captured. Another disadvantage is that multiple logistic regression can be prone to overfitting.  ")),
                                  # Classification Tree
                                  column(
                                      h2("Classification Tree"),
@@ -217,7 +215,9 @@ ui <- dashboardPage(
                               background = "green",
                               
                               # Button to press to run models
-                              actionButton("GoGo", "Run Models")
+                              actionButton("GoGo", "Run Models"),
+                              p("Please wait 1-2 minutes for results to display!")
+                              
                           )
                    ),
                    column(width=8,
@@ -227,7 +227,7 @@ ui <- dashboardPage(
                               tableOutput("summary_Accuracy")
                           ),
                           box(width=12,
-                              # Summary of predictors: Multiple Linear Regression 
+                              # Summary of predictors: Multiple Logisitic Regression 
                               title = "Model Summary: Generalized Linear Regression Model",
                               verbatimTextOutput("summary_Logic")
                           ),
@@ -250,14 +250,174 @@ ui <- dashboardPage(
 
                           
                           )),
-#                            # Allow users to choose model settings and variables
-#                            # Provide buttons to fit models on training data and display model summaries
-#                   ),
-#                   # Prediction page
-#                   tabItem("Prediction", value = "prediction",
-#                            # Allow users to input predictor values and obtain predictions
-#                   )
-#          ),
+# Prediction page
+tabItem(tabName = "prediction",
+        fluidRow(
+          column(width=6,
+                 box(width=12,
+                     # Checkbox for using OrbitalPeriod choice
+                     checkboxInput(inputId = "OrbitalCheck", 
+                                   label = "Use Orbital Period for Predicting in our Model",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.OrbitalCheck == 1",
+                                      numericInput(inputId = "OrbitalChoice",
+                                                  label = "Choose an Orbital Period in Days (1-550):",
+                                                  min = 1,
+                                                  max = 550,
+                                                  step = 1,
+                                                  value = 20)),
+                     
+                     # Checkbox for using TransitEpoch
+                     checkboxInput(inputId = "transitCheck", 
+                                   label = "Use Transit Epoch for Predicting in our model",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.transitCheck == 1",
+                                      # Choice of number of trees for predictions
+                                      numericInput(inputId = "transitChoice",
+                                                   label = "Choose Transit Epoch from 120 to 450:",
+                                                   min = 120,
+                                                   max = 450,
+                                                   step = 1,
+                                                   value = 137)),
+                     
+                     # Checkbox for using Impact Parameter
+                     checkboxInput(inputId = "impactCheck", 
+                                   label = "Use Impact Parameter for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.impactCheck == 1",
+                                      numericInput(inputId = "impactChoice",
+                                                   label = "Choose Impact Parameter from 0 to 1.8:",
+                                                   min = 0,
+                                                   max = 1.8,
+                                                   step = 0.01,
+                                                   value = 0.54)),
+                     
+                     # Checkbox for using transit duration
+                     checkboxInput(inputId = "transitDurationCheck", 
+                                   label = "Use Transit Duration for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.transitDurationCheck == 1",
+                                      # Choose transit duration for predictions
+                                      numericInput(inputId = "transitDurationChoice",
+                                                   label = "Choose a Transit Duration (hours) from 0.5 to 30:",
+                                                   min = 0.5,
+                                                   max = 30,
+                                                   step = 0.5,
+                                                   value = 4)), 
+                     
+                     # Checkbox for using transit depth
+                     checkboxInput(inputId = "transitDepthCheck", 
+                                   label = "Use Transit Depth for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.transitDepthCheck == 1",
+                                      # Choose transit depth for predictions
+                                      numericInput(inputId = "transitDepthChoice",
+                                                   label = "Choose a Transit Depth (ppm) from 0 to 10,000:",
+                                                   min = 0,
+                                                   max = 10000,
+                                                   step = 100,
+                                                   value = 500)), 
+                     # Checkbox for using InsolationFlux
+                     checkboxInput(inputId = "InsolationFluxCheck", 
+                                   label = "Use Insolation Flux for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.InsolationFluxCheck == 1",
+                                      # Choose InsolationFlux for predictions
+                                      numericInput(inputId = "InsolationFluxChoice",
+                                                   label = "Choose a Insolation Flux from 0 to 4,000:",
+                                                   min = 0,
+                                                   max = 4000,
+                                                   step = 50,
+                                                   value = 200)), 
+                     # Checkbox for using Transit Signal to Noise
+                     checkboxInput(inputId = "TransitSignalNoiseCheck", 
+                                   label = "Use Transit Signal to Noise for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.TransitSignalNoiseCheck == 1",
+                                      # Choose TransitSignalNoiseCheck for predictions
+                                      numericInput(inputId = "TransitSignalNoiseChoice",
+                                                   label = "Choose a Transit Signal to Noise value from 0 to 100:",
+                                                   min = 0,
+                                                   max = 100,
+                                                   step = 2,
+                                                   value = 24)), 
+                     
+                     # Checkbox for using Stellar Temperature
+                     checkboxInput(inputId = "StellarTemperatureCheck", 
+                                   label = "Use Stellar Temperature (K) for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.StellarTemperatureCheck == 1",
+                                      # Choose Stellar Temperature for predictions
+                                      numericInput(inputId = "StellarTemperatureChoice",
+                                                   label = "Choose a Stellar Temperature (K) value from 3,000 to 15,000:",
+                                                   min = 3000,
+                                                   max = 15000,
+                                                   step = 1000,
+                                                   value = 6000)),    
+                     # Checkbox for using Stellar Surface Gravity
+                     checkboxInput(inputId = "StellarGravityCheck", 
+                                   label = "Use Stellar Surface Gravity for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.StellarGravityCheck == 1",
+                                      # Choose Stellar Gravity for predictions
+                                      numericInput(inputId = "StellarGravityChoice",
+                                                   label = "Choose a Stellar Gravity value from 4.0 to 4.6:",
+                                                   min = 4,
+                                                   max = 4.6,
+                                                   step = 0.1,
+                                                   value = 4.4)),
+                     # Checkbox for using Stellar Radius
+                     checkboxInput(inputId = "StellarRadiusCheck", 
+                                   label = "Use Stellar Radius for Predicting in our models",
+                                   value = TRUE),
+                     
+                     conditionalPanel(condition = "input.StellarRadiusCheck == 1",
+                                      # Choose Stellar Radius for predictions
+                                      numericInput(inputId = "StellarRadiusChoice",
+                                                   label = "Choose a Stellar Radius (Solar Radii) value from 0.5 to 2.5:",
+                                                   min = 0.5,
+                                                   max = 2.5,
+                                                   step = 0.1,
+                                                   value = 1.0)),
+                 )
+          ),
+          
+          
+          column(width=6,
+                 box(width=12,
+                     h4("Choose a model to use for prediction:"),
+                     # Choose model type for predictions
+                     radioButtons(inputId = "modeltype",
+                                  label = "Choose Model Type:",
+                                  choices = c("Logistic Regression Model" = 1,
+                                              "Classification Tree Model" = 2,
+                                              "Random Forest Model" = 3),
+                                  selected = 1)
+                 ),
+                 box(width=12,
+                     # Button to press to run models
+                     actionButton("Predict", "Run Selected Predictive Model"),
+                     p("Please wait 1-2 minutes for results to display!")
+                 ),
+                 box(width=12,
+                     h4(textOutput("PredictionResults")
+                 )
+                
+                 
+          )
+        )
+)),
+
+
           # Data page
           tabItem(tabName="data",
                   fluidRow(
@@ -295,8 +455,6 @@ ui <- dashboardPage(
         )
       )
     )
-
-
 
 server <- shinyServer(function(input, output, session) {
   
@@ -456,12 +614,12 @@ server <- shinyServer(function(input, output, session) {
     RandomForest_model <- train(
       formula, data = trainData(),
       method = "rf",
-      trControl = trainControl(method = "cv", number = input$num_folds, repeats = input$num_repeats),
+      trControl = trainControl(method = "cv", number = input$num_folds, 
+                               repeats = input$num_repeats),
       tuneGrid = data.frame(mtry = 1:10))
-    
-    cl <- makeCluster(num_cores)
-    registerDoParallel(cl)
-    
+    # Stop parallel processing
+    stopCluster(cl)
+    registerDoSEQ()
     return(RandomForest_model)
   })
   
@@ -575,7 +733,22 @@ server <- shinyServer(function(input, output, session) {
       return(kepler)
     })
     
-    # Filter and subset the data based on user selection (Data Tab)
+    # Render the data table
+    output$data <- renderDataTable({
+      datatable(filteredData(), options = list(paging = FALSE))
+    })
+    
+    # Download the data as a CSV file
+    output$dataDownload <- downloadHandler(
+      filename = function(){
+        paste("keplerDataDownload-", Sys.Date(), ".csv", sep = "")
+      },
+      content = function(file){
+        write.csv(filteredData(), file)
+      }
+    )
+    
+    # Filter and subset the data based on user selection (Data Exploration Tab)
     filterDataExplore <- reactive({
       kepler <- kepler()
       
@@ -641,7 +814,6 @@ server <- shinyServer(function(input, output, session) {
         
     })
     
-
     # Render the summary table
     output$summaryTable <- renderTable({
       keplerData <- filterDataExplore()
@@ -681,24 +853,183 @@ server <- shinyServer(function(input, output, session) {
       }
     })
     
-    
-    
-    
   
-  # Render the data table
-  output$data <- renderDataTable({
-    datatable(filteredData(), options = list(paging = FALSE))
+  ## PREDICTION TAB
+  SelectedPredictVars <- reactive({
+    # Create a character vector to store the selected predictor variables
+    selected_vars <- character()
+    
+    # Append the selected predictor variable names to the vector based on user inputs
+    if (input$OrbitalCheck == 1) selected_vars <- c(selected_vars, "OrbitalPeriodDays")
+    if (input$transitCheck == 1) selected_vars <- c(selected_vars, "TransitEpoch")
+    if (input$impactCheck == 1) selected_vars <- c(selected_vars, "ImpactParameter")
+    if (input$transitDurationCheck == 1) selected_vars <- c(selected_vars, "TransitDurationHrs")
+    if (input$transitDepthCheck == 1) selected_vars <- c(selected_vars, "TransitDepth_ppm")
+    if (input$InsolationFluxCheck == 1) selected_vars <- c(selected_vars, "InsolationFlux_Earthflux")
+    if (input$TransitSignalNoiseCheck == 1) selected_vars <- c(selected_vars, "TransitSignalNoise")
+    if (input$StellarTemperatureCheck == 1) selected_vars <- c(selected_vars, "StellarEffectiveTemperatureK")
+    if (input$StellarGravityCheck == 1) selected_vars <- c(selected_vars, "StellarSurfaceGravity")
+    if (input$StellarRadiusCheck == 1) selected_vars <- c(selected_vars, "StellarRadius_Solarradii")
+    
+    # Return the character vector containing the selected predictor variable names
+    return(selected_vars)
   })
   
-  # Download the data as a CSV file
-  output$dataDownload <- downloadHandler(
-    filename = function(){
-      paste("keplerDataDownload-", Sys.Date(), ".csv", sep = "")
-    },
-    content = function(file){
-      write.csv(filteredData(), file)
+  # Modeling Fitting Output
+  ExoModel2 <- eventReactive(input$Predict, {
+    
+    # use the selected variable in our model
+    ModelVarList <- SelectedPredictVars()
+    
+    #define the response variable
+    keplerModel <- kepler() %>% 
+      mutate(KeplarExoplanetDisposition_BinaryYN = ifelse(ExoplanetArchiveDisposition == "CANDIDATE" | ExoplanetArchiveDisposition == "CONFIRMED", 1, 0)) %>%
+      select(KeplarExoplanetDisposition_BinaryYN, ModelVarList)
+    # Convert the outcome variable to a factor with two levels
+    keplerModel$KeplarExoplanetDisposition_BinaryYN <- factor(keplerModel$KeplarExoplanetDisposition_BinaryYN, levels = c(0, 1))
+    # remove missings
+    keplerModel <- na.omit(keplerModel)
+    return(keplerModel)
+  })
+  
+  # Creates training Index with the proportion specified
+  trainIndex2 <- eventReactive(input$Predict, {
+    set.seed(717)
+    kepler <- ExoModel2()
+    trainingIndex <- createDataPartition(kepler$KeplarExoplanetDisposition_BinaryYN, p = 0.7, list = FALSE)
+  })
+  
+  # Create training dataset
+  trainData2 <- eventReactive(input$Predict, {
+    
+    kepler <- ExoModel2()
+    
+    KeplarTrain <- kepler[trainIndex2(), ]
+  })
+  
+  # Create test dataset
+  testData2 <- eventReactive(input$Predict, {
+    kepler <- ExoModel2()
+    KeplarTest <- kepler[-trainIndex2(), ]
+  })
+  
+  
+  # Reactive function for creating the prediction data
+  predData <- reactive({
+    # Create a data frame with variables based on user inputs
+    prediction_data <- data.frame(
+      OrbitalPeriodDays = ifelse("OrbitalPeriodDays" %in% SelectedPredictVars(), input$OrbitalChoice, NA),
+      TransitEpoch = ifelse("TransitEpoch" %in% SelectedPredictVars(), input$transitChoice, NA),
+      ImpactParameter = ifelse("ImpactParameter" %in% SelectedPredictVars(), input$impactChoice, NA),
+      TransitDurationHrs = ifelse("TransitDurationHrs" %in% SelectedPredictVars(), input$transitDurationChoice, NA),
+      TransitDepth_ppm = ifelse("TransitDepth_ppm" %in% SelectedPredictVars(), input$transitDepthChoice, NA),
+      InsolationFlux_Earthflux = ifelse("InsolationFlux_Earthflux" %in% SelectedPredictVars(), input$InsolationFluxChoice, NA),
+      TransitSignalNoise = ifelse("TransitSignalNoise" %in% SelectedPredictVars(), input$TransitSignalNoiseChoice, NA),
+      StellarEffectiveTemperatureK = ifelse("StellarEffectiveTemperatureK" %in% SelectedPredictVars(), input$StellarTemperatureChoice, NA),
+      StellarSurfaceGravity = ifelse("StellarSurfaceGravity" %in% SelectedPredictVars(), input$StellarGravityChoice, NA),
+      StellarRadius_Solarradii = ifelse("StellarRadius_Solarradii" %in% SelectedPredictVars(), input$StellarRadiusChoice, NA)
+    )
+    
+    return(prediction_data)
+  })
+    
+  # Reactive function for fitting the GLM Regression Model
+  Logistic2 <- eventReactive(input$Predict, {
+    # Fit the GLM Regression Model
+    Logistic_model <- train(KeplarExoplanetDisposition_BinaryYN ~ ., data = trainData2(),
+                            method = "glm",
+                            preProcess = c("center", "scale"),
+                            trControl = trainControl(method = "cv", 
+                                                     number = 5))
+    return(Logistic_model)
+  })
+  
+  
+  ClassificationTree2 <- eventReactive(input$Predict, {
+    # Define the values of cp to tune
+    cp_values <- seq(0, 0.1, by = 0.001) 
+    
+    ClassificationTree_model <- train(KeplarExoplanetDisposition_BinaryYN ~ ., 
+                                      data = trainData2(),
+                                      method = "rpart",
+                                      trControl = trainControl(method = "cv", number = 5, 
+                                                               repeats = 2),
+                                      tuneGrid = data.frame(cp = cp_values))
+    return(ClassificationTree_model)
+  })
+  
+  # Fits the Random Forest Model.
+  RandomForestModel2 <- eventReactive(input$Predict, {
+    # Parallel Processing
+    num_cores <- detectCores()-1
+    cl <- makeCluster(num_cores)
+    registerDoParallel(cl)
+    
+    RandomForest_model <- train(KeplarExoplanetDisposition_BinaryYN ~ ., 
+                                data = trainData2(),
+                                method = "rf",
+                                trControl = trainControl(method = "cv", number = 5, repeats = 3),
+                                tuneGrid = data.frame(mtry = 1:10))
+    # Stop parallel processing
+    stopCluster(cl)
+    registerDoSEQ()
+    
+    return(RandomForest_model)
+  })
+  
+  
+  # Reactive function for making predictions using test data
+  prediction_results <- eventReactive(input$Predict, {
+    # Get the selected model type
+    model_type <- input$modeltype
+    
+    # Get the prediction data
+    prediction_data <- predData()
+    LogicFit <- Logistic2()
+    CTFit <- ClassificationTree2()
+    RFFit <- RandomForestModel2()
+    
+    # Make predictions based on the selected model type and the prediction data
+    if (model_type == 1) {
+      pred <- predict(LogicFit, newdata = prediction_data)
+    } else if (model_type == 2) {
+      pred <- predict(CTFit, newdata = prediction_data)
+    } else if (model_type == 3) {
+      pred <- predict(RFFit, newdata = prediction_data)
+    } else {
+      pred <- NULL
     }
-  )
+    
+    return(pred)
+  })
+  
+  output$PredictionResults <- renderPrint({
+    # Get the prediction results
+    pred <- prediction_results()
+    model_type <- input$modeltype
+    if (!is.null(pred)) {
+      # Convert the predictions to meaningful labels
+      result_labels <- ifelse(pred == 0, "False Positive", "Candidate Planet")
+      
+      # Display the selected model type
+      if (model_type == "1") {
+        model_type_message <- "Logistic Regression Model"
+      } else if (model_type == "2") {
+        model_type_message <- "Classification Tree Model"
+      } else if (model_type == "3") {
+        model_type_message <- "Random Forest Model"
+      } else {
+        model_type_message <- "Invalid model type selected. Please choose a valid model type (1 for Logistic Regression, 2 for Classification Tree, 3 for Random Forest)."
+      }
+      
+      # Display the prediction result
+      paste0("Given these parameters, our prediction using a ", model_type_message, " for exoplanet disposition is: ", result_labels)
+    } else {
+      # If pred is NULL (invalid model_type selected), display an error message
+      "Invalid model type selected. Please choose a valid model type (1 for Logistic Regression, 2 for Classification Tree, 3 for Random Forest)."
+    }
+  })
+  
   
 })
 
