@@ -2,7 +2,7 @@
 Author: Michael Bradshaw
 
 ## Purpose: 
-This repo contains code for this project in the ui.R and server.R files. These files create a shiny app that is used to explore Kepler exoplanet data and model it. 
+This repo contains code for this project in the app.R file. This creates a shiny app that is used to explore Kepler exoplanet data and model it. 
 
 ## R packages used:  
 
