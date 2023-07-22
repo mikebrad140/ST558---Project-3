@@ -12,10 +12,11 @@ This repo contains code for this project in the ui.R and server.R files. These f
   * [`ggplot2`](https://ggplot2.tidyverse.org/): This package was used to create our plots for the exploratory data analysis.
   * [`dplyr`](https://dplyr.tidyverse.org/): This package was used to `select`, `filter`, and `summarise` our data.
 * [`caret`](https://cran.r-project.org/web/packages/caret/index.html): This package was used for training and plotting regression models.
-* [`DT`](https://rstudio.github.io/DT/): This package was used to display the data table. 
+* [`DT`](https://rstudio.github.io/DT/): This package was used to display the data table.
+* [`doParallel`](https://cran.r-project.org/web/packages/doParallel/index.html): This package was used to execute R code in parallel, utilizing multiple cores or processors.
 
 ## Code to install packages:
-`install.packages(c("shiny", "shinydashboard", "readxl", "lubridate", "tidyverse", "caret", "DT"))`
+`install.packages(c("shiny", "shinydashboard", "readxl", "lubridate", "tidyverse", "caret", "DT", "doParallel"))`
 
 ## Code to create app:
-`shiny::runGitHub("ST558---Project-3", "mikebrad140")`
+`shiny::runGitHub("ST558---Project-3", "mikebrad140", subdir = "ExoplanetApp")`
